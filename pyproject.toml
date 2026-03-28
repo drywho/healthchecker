@@ -1,0 +1,15 @@
+[project]
+name = "healthcheck"
+version = "0.1.0"
+requires-python = ">=3.9"
+dependencies = [
+    "flask>=3.0",
+    "requests>=2.31",
+]
+
+[project.scripts]
+healthcheck = "healthcheck.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

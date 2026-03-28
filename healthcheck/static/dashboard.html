@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Health Checker</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0f1117; --surface: #1a1d27; --surface2: #22263a;
+      --border: #2e3248; --text: #e2e4f0; --muted: #8b8fa8;
+      --up: #22c55e; --down: #ef4444; --pending: #f59e0b;
+      --accent: #6366f1; --radius: 10px;
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 14px; line-height: 1.5; min-height: 100vh; }
+
+    /* header */
+    header { display: flex; align-items: center; justify-content: space-between; padding: 16px 28px; border-bottom: 1px solid var(--border); background: var(--surface); position: sticky; top: 0; z-index: 10; }
+    header h1 { font-size: 17px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    .header-right { display: flex; align-items: center; gap: 12px; }
+    .summary-badges { display: flex; gap: 8px; }
+    .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+    .badge.up      { background: rgba(34,197,94,0.15);  color: var(--up); }
+    .badge.down    { background: rgba(239,68,68,0.15);   color: var(--down); }
+    .badge.pending { background: rgba(245,158,11,0.15); color: var(--pending); }
+    .badge .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+    /* buttons */
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 7px; font-size: 13px; font-family: var(--font); cursor: pointer; border: 1px solid var(--border); transition: background 0.15s; white-space: nowrap; }
+    .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .btn-primary:hover { background: #4f52d4; }
+    .btn-ghost { background: var(--surface2); color: var(--text); }
+    .btn-ghost:hover { background: var(--border); }
+    .btn-sm { padding: 4px 10px; font-size: 12px; }
+
+    /* main */
+    main { padding: 22px 28px; max-width: 1300px; margin: 0 auto; }
+    .refresh-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 24px; color: var(--muted); font-size: 13px; }
+    .refresh-bar progress { appearance: none; -webkit-appearance: none; width: 110px; height: 4px; border-radius: 4px; }
+    .refresh-bar progress::-webkit-progress-bar   { background: var(--border); border-radius: 4px; }
+    .refresh-bar progress::-webkit-progress-value { background: var(--accent); border-radius: 4px; }
+    .refresh-bar progress::-moz-progress-bar      { background: var(--accent); border-radius: 4px; }
+
+    /* project section */
+    .project-section { margin-bottom: 32px; }
+    .project-header {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 16px; background: var(--surface);
+      border: 1px solid var(--border); border-radius: var(--radius) var(--radius) 0 0;
+      border-bottom: 2px solid var(--accent);
+    }
+    .project-header-info { flex: 1; min-width: 0; }
+    .project-name { font-size: 15px; font-weight: 600; }
+    .project-base-url { font-size: 11px; color: var(--muted); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .project-header-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .project-status-summary { display: flex; gap: 6px; align-items: center; }
+
+    .project-body { border: 1px solid var(--border); border-top: none; border-radius: 0 0 var(--radius) var(--radius); padding: 16px; }
+    .project-body .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+    .project-body.empty-body { padding: 24px; text-align: center; color: var(--muted); font-size: 13px; }
+
+    /* card */
+    .card { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; transition: border-color 0.2s; }
+    .card:hover { border-color: #4f52d4; }
+    .card.status-up      { border-left: 3px solid var(--up); }
+    .card.status-down    { border-left: 3px solid var(--down); }
+    .card.status-pending { border-left: 3px solid var(--pending); }
+    .card-header { display: flex; align-items: flex-start; justify-content: space-between; padding: 12px 12px 8px; gap: 8px; }
+    .card-title  { font-weight: 600; font-size: 13px; }
+    .card-url    { font-size: 11px; color: var(--muted); word-break: break-all; margin-top: 2px; }
+    .card-header-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+    .status-pill { padding: 2px 9px; border-radius: 20px; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
+    .status-pill.up      { background: rgba(34,197,94,0.15);  color: var(--up); }
+    .status-pill.down    { background: rgba(239,68,68,0.15);   color: var(--down); }
+    .status-pill.pending { background: rgba(245,158,11,0.15); color: var(--pending); }
+    .btn-icon { background: none; border: none; cursor: pointer; color: var(--muted); padding: 2px 5px; border-radius: 4px; font-size: 15px; line-height: 1; transition: color 0.15s, background 0.15s; }
+    .btn-icon:hover { color: var(--down); background: rgba(239,68,68,0.1); }
+    .btn-icon.edit:hover { color: var(--accent); background: rgba(99,102,241,0.12); }
+    .card-meta { display: flex; gap: 14px; padding: 0 14px 10px; color: var(--muted); font-size: 12px; }
+    .card-meta span strong { color: var(--text); font-weight: 500; }
+    .card-error { margin: 0 14px 10px; padding: 7px 9px; background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2); border-radius: 6px; color: #fca5a5; font-size: 11px; word-break: break-word; }
+    .card-image { padding: 0 14px 12px; }
+    .card-image img { max-width: 100%; max-height: 160px; border-radius: 5px; border: 1px solid var(--border); object-fit: contain; background: var(--surface); }
+    .card-preview-toggle { padding: 0 14px 10px; }
+    details summary { cursor: pointer; color: var(--muted); font-size: 12px; user-select: none; list-style: none; display: flex; align-items: center; gap: 5px; }
+    details summary::-webkit-details-marker { display: none; }
+    details summary::before { content: "▶"; font-size: 9px; transition: transform 0.15s; }
+    details[open] summary::before { transform: rotate(90deg); }
+    details pre { margin-top: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 9px; font-size: 11px; font-family: "SF Mono","Fira Code",monospace; overflow-x: auto; white-space: pre-wrap; word-break: break-word; color: #a5b4fc; max-height: 180px; overflow-y: auto; }
+    .checked-at { padding: 0 14px 10px; color: var(--muted); font-size: 11px; }
+    .card-redirect { padding: 0 14px 12px; }
+    .card-redirect a { color: var(--accent); font-size: 12px; word-break: break-all; text-decoration: none; }
+    .card-redirect a:hover { text-decoration: underline; }
+    .card-redirect .arrow { color: var(--muted); margin-right: 4px; }
+    .card-file { padding: 0 14px 12px; }
+    .card-file pre { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-size: 11px; font-family: "SF Mono","Fira Code",monospace; color: #a5b4fc; white-space: pre; }
+    .type-badge { display: inline-flex; align-items: center; padding: 1px 7px; border-radius: 4px; font-size: 10px; font-weight: 600; letter-spacing: 0.4px; text-transform: uppercase; background: rgba(99,102,241,0.12); color: #a5b4fc; margin-left: 4px; }
+
+    .empty-state { text-align: center; padding: 60px 20px; color: var(--muted); }
+
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+    .pending-text { animation: pulse 1.5s ease-in-out infinite; }
+
+    /* drawer overlay */
+    .drawer-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(2px); z-index: 100; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+    .drawer-overlay.open { opacity: 1; pointer-events: all; }
+    .drawer { position: fixed; top: 0; right: 0; bottom: 0; width: 400px; max-width: 100vw; background: var(--surface); border-left: 1px solid var(--border); z-index: 101; padding: 24px; transform: translateX(100%); transition: transform 0.25s cubic-bezier(.4,0,.2,1); display: flex; flex-direction: column; overflow-y: auto; }
+    .drawer.open { transform: translateX(0); }
+    .drawer-title { font-size: 16px; font-weight: 600; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; }
+    .btn-close { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 20px; line-height: 1; padding: 2px 5px; border-radius: 4px; }
+    .btn-close:hover { color: var(--text); background: var(--surface2); }
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+    .form-group input, .form-group select { width: 100%; padding: 8px 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 13px; font-family: var(--font); outline: none; transition: border-color 0.15s; }
+    .form-group input:focus, .form-group select:focus { border-color: var(--accent); }
+    .form-group input::placeholder { color: var(--muted); }
+    .form-row { display: flex; gap: 10px; }
+    .form-row .form-group { flex: 1; }
+    .form-hint { font-size: 11px; color: var(--muted); margin-top: 4px; }
+    .form-hint code { background: var(--surface); padding: 0 3px; border-radius: 3px; font-family: "SF Mono","Fira Code",monospace; }
+    .form-group textarea { width: 100%; padding: 8px 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 12px; font-family: "SF Mono","Fira Code",monospace; outline: none; resize: vertical; transition: border-color 0.15s; }
+    .form-group textarea:focus { border-color: var(--accent); }
+    .form-group textarea::placeholder { color: var(--muted); font-family: var(--font); }
+    .form-error { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: #fca5a5; border-radius: 6px; padding: 8px 10px; font-size: 12px; margin-bottom: 12px; display: none; }
+    .form-error.visible { display: block; }
+    .drawer-actions { display: flex; gap: 10px; margin-top: 8px; }
+    .drawer-actions .btn { flex: 1; justify-content: center; }
+
+    /* confirm */
+    .confirm-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 200; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.15s; }
+    .confirm-overlay.open { opacity: 1; pointer-events: all; }
+    .confirm-box { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; width: 320px; transform: scale(0.95); transition: transform 0.15s; }
+    .confirm-overlay.open .confirm-box { transform: scale(1); }
+    .confirm-box h3 { font-size: 15px; margin-bottom: 8px; }
+    .confirm-box p  { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+    .confirm-actions { display: flex; gap: 10px; justify-content: flex-end; }
+    .btn-danger { background: rgba(239,68,68,0.15); color: var(--down); border-color: rgba(239,68,68,0.3); }
+    .btn-danger:hover { background: rgba(239,68,68,0.25); }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+    Health Checker
+  </h1>
+  <div class="header-right">
+    <div class="summary-badges" id="summaryBadges"></div>
+    <button class="btn btn-primary" onclick="openProjectDrawer()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Add project
+    </button>
+  </div>
+</header>
+
+<main>
+  <div class="refresh-bar">
+    <span id="nextRefreshLabel">Refreshing…</span>
+    <progress id="refreshProgress" max="100" value="0"></progress>
+    <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="fetchAndRender()">Refresh now</button>
+  </div>
+  <div id="projects-container"></div>
+</main>
+
+<!-- Add project drawer -->
+<div class="drawer-overlay" id="drawerOverlay" onclick="closeAllDrawers()"></div>
+
+<div class="drawer" id="projectDrawer">
+  <div class="drawer-title"><span id="projectDrawerTitle">Add project</span> <button class="btn-close" onclick="closeAllDrawers()">×</button></div>
+  <div class="form-group">
+    <label>Project name *</label>
+    <input id="pf-name" type="text" placeholder="My Backend" autocomplete="off" />
+  </div>
+  <div class="form-group">
+    <label>Base URL <span style="color:var(--muted)">(optional)</span></label>
+    <input id="pf-base-url" type="url" placeholder="https://api.example.com" autocomplete="off" />
+    <div class="form-hint">Endpoints can use a path like /health instead of the full URL.</div>
+  </div>
+  <div class="form-group">
+    <label>Default headers <span style="color:var(--muted)">(optional — applied to all endpoints)</span></label>
+    <textarea id="pf-headers" rows="3" placeholder="Authorization: Bearer token&#10;X-Api-Key: abc123"></textarea>
+    <div class="form-hint">One <code>Key: Value</code> per line.</div>
+  </div>
+  <div class="form-error" id="projectFormError"></div>
+  <div class="drawer-actions">
+    <button class="btn btn-ghost" onclick="closeAllDrawers()">Cancel</button>
+    <button class="btn btn-primary" id="projectSubmitBtn" onclick="submitProject()">Add project</button>
+  </div>
+</div>
+
+<!-- Add/Edit endpoint drawer -->
+<div class="drawer" id="endpointDrawer">
+  <div class="drawer-title">
+    <span id="endpointDrawerTitle">Add endpoint</span>
+    <button class="btn-close" onclick="closeAllDrawers()">×</button>
+  </div>
+  <div class="form-group">
+    <label>Project</label>
+    <input id="ef-project" type="text" disabled style="opacity:0.6" />
+  </div>
+  <div class="form-group">
+    <label>Endpoint name *</label>
+    <input id="ef-name" type="text" placeholder="Health Check" autocomplete="off" />
+  </div>
+  <div class="form-group">
+    <label>URL *</label>
+    <input id="ef-url" type="text" placeholder="https://… or /path" autocomplete="off" />
+    <div class="form-hint" id="ef-url-hint"></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label>Type</label>
+      <select id="ef-type" onchange="onTypeChange()">
+        <option value="json">json — JSONResponse</option>
+        <option value="html">html — HTMLResponse</option>
+        <option value="text">text — PlainTextResponse</option>
+        <option value="image">image — image/* response</option>
+        <option value="file">file — FileResponse</option>
+        <option value="redirect">redirect — RedirectResponse</option>
+        <option value="ping">ping — reachability only</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Expected status</label>
+      <input id="ef-status" type="number" value="200" min="100" max="599" />
+    </div>
+  </div>
+  <div class="form-hint" id="ef-type-hint" style="margin-bottom:12px"></div>
+  <div class="form-group">
+    <label>Timeout (seconds)</label>
+    <input id="ef-timeout" type="number" value="5" min="1" max="60" />
+  </div>
+  <div class="form-group">
+    <label>Headers <span style="color:var(--muted)">(optional — overrides project headers)</span></label>
+    <textarea id="ef-headers" rows="3" placeholder="Authorization: Bearer token&#10;X-Api-Key: abc123"></textarea>
+    <div class="form-hint">One <code>Key: Value</code> per line.</div>
+  </div>
+  <div class="form-error" id="endpointFormError"></div>
+  <div class="drawer-actions">
+    <button class="btn btn-ghost" onclick="closeAllDrawers()">Cancel</button>
+    <button class="btn btn-primary" id="endpointSubmitBtn" onclick="submitEndpoint()">Add endpoint</button>
+  </div>
+</div>
+
+<!-- Confirm dialog -->
+<div class="confirm-overlay" id="confirmOverlay">
+  <div class="confirm-box">
+    <h3 id="confirmTitle">Confirm</h3>
+    <p id="confirmMsg"></p>
+    <div class="confirm-actions">
+      <button class="btn btn-ghost" onclick="closeConfirm()">Cancel</button>
+      <button class="btn btn-danger" id="confirmOkBtn">Remove</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  let pollInterval = 30;
+  let countdown = 0;
+  let countdownTimer = null;
+  let pendingAction = null;
+  let activeEndpointProject = null; // {name, base_url}
+  let projectDrawerMode = 'add';    // 'add' | 'edit'
+  let editingProjectName = null;    // original name when editing
+  let endpointDrawerMode = 'add';   // 'add' | 'edit'
+  let editingEndpointName = null;   // original ep name when editing
+  let latestData = null;            // last /api/status response
+
+  // ── utils ────────────────────────────────────────────────────────────────────
+  const esc = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const fmt = ms => ms == null ? '—' : ms < 1000 ? ms.toFixed(0)+' ms' : (ms/1000).toFixed(2)+' s';
+  const fmtTime = iso => iso ? new Date(iso).toLocaleTimeString() : '—';
+
+  const TYPE_HINTS = {
+    json:     'Validates JSON response body. Shows a collapsible preview.',
+    html:     'Validates HTML response. Extracts and shows the &lt;title&gt;.',
+    text:     'Validates text/* Content-Type. Shows a plain text preview.',
+    image:    'Validates image/* Content-Type. Renders the image inline.',
+    file:     'Validates FileResponse — checks Content-Disposition and shows filename + size.',
+    redirect: 'Validates RedirectResponse — does NOT follow the redirect. Set expected status to 301 or 302.',
+    ping:     'Simple reachability check — only validates the status code.',
+  };
+
+  function onTypeChange() {
+    const type = document.getElementById('ef-type').value;
+    const hint = document.getElementById('ef-type-hint');
+    hint.innerHTML = TYPE_HINTS[type] || '';
+    // Auto-set expected status for redirect
+    if (type === 'redirect') {
+      const statusEl = document.getElementById('ef-status');
+      if (statusEl.value === '200') statusEl.value = '302';
+    } else {
+      const statusEl = document.getElementById('ef-status');
+      if (statusEl.value === '302') statusEl.value = '200';
+    }
+  }
+
+  function parseHeaders(text) {
+    const headers = {};
+    for (const line of (text||'').split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      const colon = trimmed.indexOf(':');
+      if (colon < 1) continue;
+      const key = trimmed.slice(0, colon).trim();
+      const val = trimmed.slice(colon + 1).trim();
+      if (key) headers[key] = val;
+    }
+    return headers;
+  }
+
+  function headersToText(obj) {
+    return Object.entries(obj||{}).map(([k,v]) => `${k}: ${v}`).join('\n');
+  }
+
+  // ── render ───────────────────────────────────────────────────────────────────
+  const TYPE_LABELS = {
+    json:     'JSONResponse',
+    html:     'HTMLResponse',
+    text:     'PlainTextResponse',
+    image:    'ImageResponse',
+    file:     'FileResponse',
+    redirect: 'RedirectResponse',
+    ping:     'Ping',
+  };
+
+  function renderTypeBody(r) {
+    if (r.status === 'down' && r.error) {
+      return `<div class="card-error">${esc(r.error)}</div>`;
+    }
+    switch (r.type) {
+      case 'image':
+        return r.image_data
+          ? `<div class="card-image"><img src="${r.image_data}" alt="${esc(r.name)}"/></div>`
+          : '';
+
+      case 'redirect':
+        if (!r.response_preview) return '';
+        // response_preview is "→ https://..."
+        const loc = r.response_preview.replace(/^→\s*/, '');
+        return `<div class="card-redirect"><span class="arrow">→</span><a href="${esc(loc)}" target="_blank" rel="noopener">${esc(loc)}</a></div>`;
+
+      case 'file':
+        return r.response_preview
+          ? `<div class="card-file"><pre>${esc(r.response_preview)}</pre></div>`
+          : '';
+
+      case 'html':
+        return r.response_preview
+          ? `<div class="card-preview-toggle"><details><summary>Page title</summary><pre>${esc(r.response_preview)}</pre></details></div>`
+          : '';
+
+      case 'json':
+      case 'text':
+        return r.response_preview
+          ? `<div class="card-preview-toggle"><details><summary>Response preview</summary><pre>${esc(r.response_preview)}</pre></details></div>`
+          : '';
+
+      default:
+        return '';
+    }
+  }
+
+  function renderCard(r) {
+    const pendingCls = r.status === 'pending' ? ' pending-text' : '';
+    const typeLabel  = TYPE_LABELS[r.type] || r.type;
+    return `
+      <div class="card status-${r.status}">
+        <div class="card-header">
+          <div>
+            <div class="card-title">${esc(r.name)}<span class="type-badge">${esc(typeLabel)}</span></div>
+            <div class="card-url">${esc(r.url)}</div>
+          </div>
+          <div class="card-header-right">
+            <span class="status-pill ${r.status}${pendingCls}">${r.status}</span>
+            <button class="btn-icon edit" title="Edit endpoint"
+              data-project="${esc(r.project)}" data-name="${esc(r.name)}"
+              onclick="openEditEndpointDrawer(this)">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </button>
+            <button class="btn-icon" title="Remove endpoint"
+              data-project="${esc(r.project)}" data-name="${esc(r.name)}"
+              onclick="confirmRemoveEndpoint(this)">×</button>
+          </div>
+        </div>
+        <div class="card-meta">
+          <span><strong>${r.http_code??'—'}</strong> status</span>
+          <span><strong>${fmt(r.latency_ms)}</strong> latency</span>
+        </div>
+        ${renderTypeBody(r)}
+        <div class="checked-at">Last checked: ${fmtTime(r.checked_at)}</div>
+      </div>`;
+  }
+
+  function projectStatusSummary(results) {
+    const c = {up:0,down:0,pending:0};
+    results.forEach(r => c[r.status] = (c[r.status]||0)+1);
+    return [
+      c.up      ? `<span class="badge up"   ><span class="dot"></span>${c.up}</span>` : '',
+      c.down    ? `<span class="badge down" ><span class="dot"></span>${c.down}</span>` : '',
+      c.pending ? `<span class="badge pending"><span class="dot"></span>${c.pending}</span>` : '',
+    ].join('');
+  }
+
+  function renderProjects(projects, allResults) {
+    const container = document.getElementById('projects-container');
+
+    if (!projects.length) {
+      container.innerHTML = `<div class="empty-state">
+        <p style="font-size:15px;margin-bottom:8px">No projects yet</p>
+        <p>Click <strong>Add project</strong> to get started.</p>
+      </div>`;
+      return;
+    }
+
+    // Group results by project
+    const byProject = {};
+    allResults.forEach(r => {
+      (byProject[r.project] = byProject[r.project]||[]).push(r);
+    });
+
+    container.innerHTML = projects.map(proj => {
+      const results = byProject[proj.name] || [];
+      const summary = projectStatusSummary(results);
+      const baseUrlHtml = proj.base_url
+        ? `<div class="project-base-url">${esc(proj.base_url)}</div>` : '';
+
+      const bodyHtml = results.length
+        ? `<div class="project-body"><div class="grid">${results.map(renderCard).join('')}</div></div>`
+        : `<div class="project-body empty-body">No endpoints yet — click <strong>Add endpoint</strong></div>`;
+
+      return `
+        <div class="project-section">
+          <div class="project-header">
+            <div class="project-header-info">
+              <div class="project-name">${esc(proj.name)}</div>
+              ${baseUrlHtml}
+            </div>
+            <div class="project-status-summary">${summary}</div>
+            <div class="project-header-actions">
+              <button class="btn btn-ghost btn-sm"
+                data-project-name="${esc(proj.name)}" data-base-url="${esc(proj.base_url||'')}"
+                onclick="openEndpointDrawer(this)">
+                + Add endpoint
+              </button>
+              <button class="btn-icon edit" title="Edit project"
+                data-project-name="${esc(proj.name)}"
+                onclick="openEditProjectDrawer(this)">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </button>
+              <button class="btn-icon" title="Remove project"
+                data-project-name="${esc(proj.name)}"
+                onclick="confirmRemoveProject(this)">×</button>
+            </div>
+          </div>
+          ${bodyHtml}
+        </div>`;
+    }).join('');
+  }
+
+  function renderSummaryBadges(results) {
+    const c = {up:0,down:0,pending:0};
+    results.forEach(r => c[r.status] = (c[r.status]||0)+1);
+    document.getElementById('summaryBadges').innerHTML = [
+      c.up      ? `<span class="badge up"><span class="dot"></span>${c.up} up</span>` : '',
+      c.down    ? `<span class="badge down"><span class="dot"></span>${c.down} down</span>` : '',
+      c.pending ? `<span class="badge pending"><span class="dot"></span>${c.pending} pending</span>` : '',
+    ].join('');
+  }
+
+  // ── fetch ────────────────────────────────────────────────────────────────────
+  async function fetchAndRender() {
+    try {
+      const data = await fetch('/api/status').then(r => r.json());
+      latestData = data;
+      pollInterval = data.meta.poll_interval;
+      renderProjects(data.projects, data.results);
+      renderSummaryBadges(data.results);
+      resetCountdown();
+    } catch(e) { console.error('fetch failed', e); }
+  }
+
+  function resetCountdown() {
+    countdown = pollInterval;
+    if (countdownTimer) clearInterval(countdownTimer);
+    const label = document.getElementById('nextRefreshLabel');
+    const bar   = document.getElementById('refreshProgress');
+    label.textContent = `Next refresh in ${countdown}s`;
+    bar.value = 0;
+    countdownTimer = setInterval(() => {
+      countdown--;
+      if (countdown <= 0) { clearInterval(countdownTimer); fetchAndRender(); return; }
+      label.textContent = `Next refresh in ${countdown}s`;
+      bar.value = Math.round(((pollInterval - countdown) / pollInterval) * 100);
+    }, 1000);
+  }
+
+  // ── drawers ──────────────────────────────────────────────────────────────────
+  function closeAllDrawers() {
+    document.getElementById('drawerOverlay').classList.remove('open');
+    document.getElementById('projectDrawer').classList.remove('open');
+    document.getElementById('endpointDrawer').classList.remove('open');
+  }
+
+  function openProjectDrawer() {
+    projectDrawerMode = 'add';
+    editingProjectName = null;
+    closeAllDrawers();
+    document.getElementById('projectDrawerTitle').textContent = 'Add project';
+    document.getElementById('projectSubmitBtn').textContent = 'Add project';
+    document.getElementById('projectFormError').classList.remove('visible');
+    document.getElementById('pf-name').value = '';
+    document.getElementById('pf-base-url').value = '';
+    document.getElementById('pf-headers').value = '';
+    document.getElementById('drawerOverlay').classList.add('open');
+    document.getElementById('projectDrawer').classList.add('open');
+    setTimeout(() => document.getElementById('pf-name').focus(), 100);
+  }
+
+  function openEditProjectDrawer(btn) {
+    const name = btn.dataset.projectName;
+    const proj = latestData?.projects.find(p => p.name === name);
+    if (!proj) return;
+    projectDrawerMode = 'edit';
+    editingProjectName = name;
+    closeAllDrawers();
+    document.getElementById('projectDrawerTitle').textContent = 'Edit project';
+    document.getElementById('projectSubmitBtn').textContent = 'Save changes';
+    document.getElementById('projectFormError').classList.remove('visible');
+    document.getElementById('pf-name').value = proj.name;
+    document.getElementById('pf-base-url').value = proj.base_url || '';
+    document.getElementById('pf-headers').value = headersToText(proj.headers);
+    document.getElementById('drawerOverlay').classList.add('open');
+    document.getElementById('projectDrawer').classList.add('open');
+    setTimeout(() => document.getElementById('pf-name').focus(), 100);
+  }
+
+  function _openEndpointDrawerBase(projectName, baseUrl) {
+    closeAllDrawers();
+    activeEndpointProject = { name: projectName, base_url: baseUrl };
+    document.getElementById('endpointFormError').classList.remove('visible');
+    document.getElementById('ef-project').value = projectName;
+    document.getElementById('ef-url-hint').textContent =
+      baseUrl ? `Base URL: ${baseUrl} — you can enter a path like /health` : '';
+    document.getElementById('drawerOverlay').classList.add('open');
+    document.getElementById('endpointDrawer').classList.add('open');
+    setTimeout(() => document.getElementById('ef-name').focus(), 100);
+  }
+
+  function openEndpointDrawer(btn) {
+    endpointDrawerMode = 'add';
+    editingEndpointName = null;
+    _openEndpointDrawerBase(btn.dataset.projectName, btn.dataset.baseUrl || '');
+    document.getElementById('endpointDrawerTitle').textContent = 'Add endpoint';
+    document.getElementById('endpointSubmitBtn').textContent = 'Add endpoint';
+    document.getElementById('ef-name').value = '';
+    document.getElementById('ef-url').value = '';
+    document.getElementById('ef-type').value = 'json';
+    document.getElementById('ef-status').value = '200';
+    document.getElementById('ef-timeout').value = '5';
+    document.getElementById('ef-headers').value = '';
+  }
+
+  function openEditEndpointDrawer(btn) {
+    const projectName = btn.dataset.project;
+    const epName      = btn.dataset.name;
+    const proj = latestData?.projects.find(p => p.name === projectName);
+    const ep   = proj?.endpoints.find(e => e.name === epName);
+    if (!ep) return;
+    endpointDrawerMode = 'edit';
+    editingEndpointName = epName;
+    _openEndpointDrawerBase(projectName, proj.base_url || '');
+    document.getElementById('endpointDrawerTitle').textContent = 'Edit endpoint';
+    document.getElementById('endpointSubmitBtn').textContent = 'Save changes';
+    document.getElementById('ef-name').value    = ep.name;
+    document.getElementById('ef-url').value     = ep.path || ep.url || '';
+    document.getElementById('ef-type').value    = ep.type || 'json';
+    document.getElementById('ef-status').value  = ep.expected_status ?? 200;
+    document.getElementById('ef-timeout').value = ep.timeout ?? 5;
+    document.getElementById('ef-headers').value = headersToText(ep.headers);
+    onTypeChange();
+  }
+
+  // ── project submit ───────────────────────────────────────────────────────────
+  async function submitProject() {
+    const errEl = document.getElementById('projectFormError');
+    errEl.classList.remove('visible');
+    const name    = document.getElementById('pf-name').value.trim();
+    const baseUrl = document.getElementById('pf-base-url').value.trim();
+    const headers = parseHeaders(document.getElementById('pf-headers').value);
+    if (!name) { errEl.textContent = 'Project name is required.'; errEl.classList.add('visible'); return; }
+    try {
+      const isEdit = projectDrawerMode === 'edit';
+      const url    = isEdit ? `/api/projects/${encodeURIComponent(editingProjectName)}` : '/api/projects';
+      const resp = await fetch(url, {
+        method: isEdit ? 'PUT' : 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({name, base_url: baseUrl, headers}),
+      });
+      const data = await resp.json();
+      if (!resp.ok) { errEl.textContent = data.error||'Failed'; errEl.classList.add('visible'); return; }
+      closeAllDrawers();
+      fetchAndRender();
+    } catch(e) { errEl.textContent = 'Request failed.'; errEl.classList.add('visible'); }
+  }
+
+  // ── endpoint submit ──────────────────────────────────────────────────────────
+  async function submitEndpoint() {
+    const errEl = document.getElementById('endpointFormError');
+    errEl.classList.remove('visible');
+    const name    = document.getElementById('ef-name').value.trim();
+    const url     = document.getElementById('ef-url').value.trim();
+    const type    = document.getElementById('ef-type').value;
+    const status  = parseInt(document.getElementById('ef-status').value)||200;
+    const timeout = parseInt(document.getElementById('ef-timeout').value)||5;
+    const headers = parseHeaders(document.getElementById('ef-headers').value);
+    if (!name) { errEl.textContent = 'Name is required.'; errEl.classList.add('visible'); return; }
+    if (!url)  { errEl.textContent = 'URL is required.';  errEl.classList.add('visible'); return; }
+    const proj = activeEndpointProject;
+    if (!proj) return;
+
+    // Send as path if it looks relative
+    const body = { name, type, expected_status: status, timeout, headers };
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      body.url = url;
+    } else {
+      body.path = url;
+    }
+
+    try {
+      const isEdit = endpointDrawerMode === 'edit';
+      const apiUrl = isEdit
+        ? `/api/projects/${encodeURIComponent(proj.name)}/endpoints/${encodeURIComponent(editingEndpointName)}`
+        : `/api/projects/${encodeURIComponent(proj.name)}/endpoints`;
+      const resp = await fetch(apiUrl, {
+        method: isEdit ? 'PUT' : 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(body),
+      });
+      const data = await resp.json();
+      if (!resp.ok) { errEl.textContent = data.error||'Failed'; errEl.classList.add('visible'); return; }
+      closeAllDrawers();
+      fetchAndRender();
+    } catch(e) { errEl.textContent = 'Request failed.'; errEl.classList.add('visible'); }
+  }
+
+  // ── confirm ──────────────────────────────────────────────────────────────────
+  function showConfirm(title, msg, fn) {
+    pendingAction = fn;
+    document.getElementById('confirmTitle').textContent = title;
+    document.getElementById('confirmMsg').textContent = msg;
+    document.getElementById('confirmOkBtn').onclick = async () => { closeConfirm(); await fn(); fetchAndRender(); };
+    document.getElementById('confirmOverlay').classList.add('open');
+  }
+
+  function closeConfirm() {
+    document.getElementById('confirmOverlay').classList.remove('open');
+    pendingAction = null;
+  }
+
+  function confirmRemoveProject(btn) {
+    const name = btn.dataset.projectName;
+    showConfirm(
+      'Remove project?',
+      `Remove "${name}" and all its endpoints?`,
+      () => fetch(`/api/projects/${encodeURIComponent(name)}`, {method:'DELETE'})
+    );
+  }
+
+  function confirmRemoveEndpoint(btn) {
+    const project = btn.dataset.project;
+    const name    = btn.dataset.name;
+    showConfirm(
+      'Remove endpoint?',
+      `Remove "${name}" from "${project}"?`,
+      () => fetch(`/api/projects/${encodeURIComponent(project)}/endpoints/${encodeURIComponent(name)}`, {method:'DELETE'})
+    );
+  }
+
+  // close confirm on overlay click
+  document.getElementById('confirmOverlay').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeConfirm();
+  });
+
+  // Enter key in drawers
+  ['pf-name','pf-base-url'].forEach(id =>
+    document.getElementById(id).addEventListener('keydown', e => {
+      if (e.key === 'Enter') submitProject();
+      if (e.key === 'Escape') closeAllDrawers();
+    })
+  );
+  ['ef-name','ef-url','ef-status','ef-timeout'].forEach(id =>
+    document.getElementById(id).addEventListener('keydown', e => {
+      if (e.key === 'Enter') submitEndpoint();
+      if (e.key === 'Escape') closeAllDrawers();
+    })
+  );
+
+  fetchAndRender();
+</script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+{
+  "poll_interval": 30,
+  "server_port": 8080,
+  "projects": [
+    {
+      "name": "My Project",
+      "base_url": "https://api.example.com",
+      "headers": {
+        "Authorization": "Bearer your-token"
+      },
+      "endpoints": [
+        { "name": "Health",   "path": "/health",   "type": "json" },
+        { "name": "Homepage", "path": "/",          "type": "html" },
+        { "name": "Logo",     "path": "/logo.png",  "type": "image" }
+      ]
+    }
+  ]
+}
