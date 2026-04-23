@@ -11,12 +11,10 @@ A lightweight CLI tool for monitoring APIs and webpages. Define your endpoints i
 ## Installation
 
 ```bash
-# Create a virtual environment and install
-uv venv
-uv pip install -e .
-
-# Add to PATH (add this to your ~/.zshrc or ~/.bashrc)
-export PATH="/path/to/healthchecker/.venv/bin:$PATH"
+# install via pipx or uv
+cd healthchecker
+pipx install --editable .
+uv tool install --editable .
 ```
 
 ---
